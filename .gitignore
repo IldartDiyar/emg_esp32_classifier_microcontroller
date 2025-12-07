@@ -1,0 +1,31 @@
+# Build artifacts
+build/
+sdkconfig.old
+*.bin
+*.elf
+*.map
+
+# Python virtual env
+*.pyc
+__pycache__/
+.env/
+
+# IDF tools cache
+.espressif/
+
+# VSCode + JetBrains
+.vscode/
+.idea/
+
+# Backup files
+*~
+*.bak
+.DS_Store
+
+# Generated logs
+*.log
+
+# CMake junk
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
