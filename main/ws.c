@@ -4,6 +4,7 @@
 #include "string.h"
 #include "adc_emg.h"
 #include "freertos/task.h"
+#include "esp_timer.h"
 #include <stdlib.h>
 
 static const char *TAG = "WS";
@@ -11,17 +12,24 @@ static esp_websocket_client_handle_t client;
 
 #define DEVICE_NAME "ESP32-C6-01"
 
+// ===== NEW GLOBALS =====
 static int g_device_id = 0;
 static int g_handshake_ok = 0;
 static int g_streaming = 0;
 static int g_duration_sec = 0;
+
+static int64_t g_server_time = 0;        
+static int64_t g_stream_start_esp = 0;   
+
 static TaskHandle_t stream_task = NULL;
+
 
 static void ws_send(const char *msg)
 {
     if (!client) return;
     esp_websocket_client_send_text(client, msg, strlen(msg), portMAX_DELAY);
 }
+
 
 static void ws_send_handshake()
 {
@@ -31,6 +39,7 @@ static void ws_send_handshake()
         DEVICE_NAME);
     ws_send(buf);
 }
+
 
 static void stream_task_fn(void *arg)
 {
@@ -45,9 +54,16 @@ static void stream_task_fn(void *arg)
     {
         int emg = adc_emg_read();
 
+
+        int64_t now_us = esp_timer_get_time();
+        int64_t delta_us = now_us - g_stream_start_esp;
+
+        int64_t final_ts = g_server_time * 1000000LL + delta_us;
+
         char buf[256];
         snprintf(buf, sizeof(buf),
-            "{\"event\":\"raw_stream_in_process\",\"raw\":[%d]}", emg);
+            "{\"event\":\"raw_stream_in_process\",\"timestamp\":%lld,\"raw\":[%d]}",
+            (long long)final_ts, emg);
 
         ws_send(buf);
 
@@ -61,6 +77,7 @@ static void stream_task_fn(void *arg)
     vTaskDelete(NULL);
 }
 
+
 static void handle_msg(const char *msg)
 {
     ESP_LOGI(TAG, "PARSE: %s", msg);
@@ -71,7 +88,6 @@ static void handle_msg(const char *msg)
         if (d) g_device_id = atoi(d + 12);
 
         g_handshake_ok = 1;
-
         ESP_LOGI(TAG, "Handshake OK, device ID=%d", g_device_id);
         return;
     }
@@ -80,6 +96,11 @@ static void handle_msg(const char *msg)
     {
         const char *dur = strstr(msg, "\"duration\":");
         if (dur) g_duration_sec = atoi(dur + 11);
+
+        const char *ts = strstr(msg, "\"server_time\":");
+        if (ts) g_server_time = atoll(ts + 14);
+
+        g_stream_start_esp = esp_timer_get_time();
 
         g_streaming = 1;
 
@@ -95,6 +116,7 @@ static void handle_msg(const char *msg)
         return;
     }
 }
+
 
 static void websocket_event_handler(void *args,
                                     esp_event_base_t base,
