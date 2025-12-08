@@ -1,12 +1,7 @@
-#ifndef ADC_EMG_H
-#define ADC_EMG_H
+#pragma once
 
-#include "esp_adc/adc_oneshot.h"
+#include <stdint.h>
+#include "esp_adc/adc_continuous.h"
 
-// Initialize ADC for EMG sensor (GPIO1 / ADC1_CH0)
-void adc_emg_init(void);
-
-// Read one EMG sample (0–4095)
-int adc_emg_read(void);
-
-#endif // ADC_EMG_H
+void adc_emg_init();
+int adc_emg_get_batch(uint16_t *out_buf, int max_samples);
